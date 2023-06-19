@@ -91,6 +91,10 @@ testing <- training_data[-inTrain, ]
 
 
 ```{r}
+# Convert the 'classe' variable to a factor in both training and testing datasets
+training$classe <- factor(training$classe)
+testing$classe <- factor(testing$classe)
+
 # Train the model
 model <- train(classe ~ ., data = training, method = "rf")
 
@@ -98,15 +102,43 @@ model <- train(classe ~ ., data = training, method = "rf")
 predictions <- predict(model, newdata = testing)
 accuracy <- confusionMatrix(predictions, testing$classe)$overall["Accuracy"]
 
+# Load the test data
+test_data <- read.csv("pml-testing.csv", na.strings=c("NA", ""))
+
+# Preprocess the test data
+test_data <- test_data[, colMeans(is.na(test_data)) < 0.5]
+test_data <- test_data[, -(1:7)]
+
 # Predict exercise manner for 20 test cases
-newdata <- read.csv("pml-testing.csv")
-newdata <- newdata[, colnames(newdata) %in% colnames(training)]
-predicted_classes <- predict(model, newdata = newdata)
+predicted_classes <- predict(model, newdata = test_data)
+
+# Extract confusion matrix
+confusion <- confusionMatrix(predictions, testing$classe)
+
+# Print the confusion matrix
+print(confusion)
 ```
 
+```{r}
+# Plot 1: Variable Importance
+var_importance <- varImp(model)
+plot(var_importance)
+
+# Plot 2: Confusion Matrix
+confusion <- confusionMatrix(predictions, testing$classe)
+plot(confusion$table, col = confusion$byClass, 
+     main = "Confusion Matrix",
+     xlab = "Predicted Class",
+     ylab = "True Class")
+
+# Plot 3: Prediction Distribution
+prediction_dist <- data.frame(predictions)
+prediction_dist$PredictedClass <- as.factor(predictions)
+ggplot(prediction_dist, aes(x = PredictedClass, fill = PredictedClass)) +
+  geom_bar() +
+  labs(title = "Distribution of Predicted Classes",
+       x = "Predicted Class",
+       y = "Count") +
+  theme_minimal()
+```
 In the code above, we train the Random Forest model using the training data and evaluate its performance on the testing data. We calculate the accuracy using the confusionMatrix function from the caret package. Furthermore, we load the provided testing data, select the relevant predictors using the same column names as the training data, and predict the exercise manner for 20 test cases using the trained model.
-
-Conclusion
-In this project, we aimed to predict the manner in which participants perform barbell lifts using data collected from accelerometers on various body parts. We employed the Random Forest algorithm and performed cross-validation to build a robust prediction model. The model was evaluated using the testing data, and the exercise manner was predicted for 20 different test cases.
-
-The expected out-of-sample error can be estimated based on the model's accuracy on the testing data, which represents the model's performance on unseen data. We made the choice of using Random Forest due to its ability to handle high-dimensional data and capture complex interactions between features.
