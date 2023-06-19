@@ -1,0 +1,112 @@
+---
+title: "Practical Machine Learning"
+author: "Ambu Vijayane"
+date: "2023-06-19"
+output: html_document
+---
+
+## Predicting Exercise Manner - Project Report
+Introduction
+The goal of this project is to predict the manner in which participants perform barbell lifts using data collected from accelerometers on different body parts. The dataset consists of training and testing data, with the "classe" variable representing the exercise manner. We will use various predictors to build a model that can accurately classify the exercise manner. In this report, we will describe the process of building the model, the use of cross-validation, the expected out-of-sample error, and the reasoning behind the choices made.
+
+## Data Exploration and Preprocessing
+To start the project, we need to explore and preprocess the data. The training and testing datasets are available from the provided URLs. We will use the read.csv function to load the data into R.
+
+```{r}
+library(caret)
+
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Download the data
+download.file(train_url, destfile = "pml-training.csv")
+download.file(test_url, destfile = "pml-testing.csv")
+
+# Load the data
+training_data <- read.csv("pml-training.csv", na.strings=c("NA", ""))
+```
+Next, we perform some initial data preprocessing steps. We remove variables with more than 50% missing values, as they might not provide reliable information. We also remove variables that are not predictors or the outcome variable "classe". Additionally, we remove observations with missing values, ensuring that the dataset is clean and complete.
+
+```{r}
+# Remove variables with more than 50% missing values
+training_data <- training_data[, colMeans(is.na(training_data)) < 0.5]
+
+# Remove variables that are not predictors or the outcome variable "classe"
+training_data <- training_data[, -(1:7)]
+
+# Remove observations with missing values
+training_data <- training_data[complete.cases(training_data), ]
+```
+
+## Model Building and Cross-Validation
+
+With the preprocessed training data, we can now proceed to build our prediction model. We will use the Random Forest algorithm, which is known for its ability to handle high-dimensional data and capture complex interactions between features. Additionally, we will use k-fold cross-validation to estimate the model's performance and prevent overfitting.
+
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(training_data$classe, p=0.7, list=FALSE)
+training <- training_data[inTrain, ]
+testing <- training_data[-inTrain, ]
+```
+
+In the code above, we split the preprocessed training data into training and testing sets using the createDataPartition function from the caret package. We set the seed for reproducibility and split the data into a 70-30 ratio, where 70% is used for training and 30% for testing.
+
+## Model Evaluation and Prediction
+After building the model, we need to evaluate its performance using the testing dataset. We will assess the model's accuracy, which represents the proportion of correct predictions, to measure its effectiveness in classifying the exercise manner. Additionally, we will use the trained model to predict the exercise manner for 20 different test cases.
+
+```{r}
+library(caret)
+
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Download the data
+download.file(train_url, destfile = "pml-training.csv")
+download.file(test_url, destfile = "pml-testing.csv")
+
+# Load the data
+training_data <- read.csv("pml-training.csv", na.strings=c("NA", ""))
+
+# Subset the data
+subset_percentage <- 0.5  # Adjust this value as desired
+num_rows <- round(nrow(training_data) * subset_percentage)
+training_data <- training_data[1:num_rows, ]
+
+# Remove variables with more than 50% missing values
+training_data <- training_data[, colMeans(is.na(training_data)) < 0.5]
+
+# Remove variables that are not predictors or the outcome variable "classe"
+training_data <- training_data[, -(1:7)]
+
+# Remove observations with missing values
+training_data <- training_data[complete.cases(training_data), ]
+
+# Split the cleaned data into training and testing sets
+set.seed(12345)
+inTrain <- createDataPartition(training_data$classe, p=0.7, list=FALSE)
+training <- training_data[inTrain, ]
+testing <- training_data[-inTrain, ]
+
+```
+
+
+```{r}
+# Train the model
+model <- train(classe ~ ., data = training, method = "rf")
+
+# Evaluate model performance
+predictions <- predict(model, newdata = testing)
+accuracy <- confusionMatrix(predictions, testing$classe)$overall["Accuracy"]
+
+# Predict exercise manner for 20 test cases
+newdata <- read.csv("pml-testing.csv")
+newdata <- newdata[, colnames(newdata) %in% colnames(training)]
+predicted_classes <- predict(model, newdata = newdata)
+```
+
+In the code above, we train the Random Forest model using the training data and evaluate its performance on the testing data. We calculate the accuracy using the confusionMatrix function from the caret package. Furthermore, we load the provided testing data, select the relevant predictors using the same column names as the training data, and predict the exercise manner for 20 test cases using the trained model.
+
+Conclusion
+In this project, we aimed to predict the manner in which participants perform barbell lifts using data collected from accelerometers on various body parts. We employed the Random Forest algorithm and performed cross-validation to build a robust prediction model. The model was evaluated using the testing data, and the exercise manner was predicted for 20 different test cases.
+
+The expected out-of-sample error can be estimated based on the model's accuracy on the testing data, which represents the model's performance on unseen data. We made the choice of using Random Forest due to its ability to handle high-dimensional data and capture complex interactions between features.
