@@ -1,9 +1,13 @@
 ---
 title: "Practical Machine Learning"
-author: "Ambu Vijayane"
+author: "Ambu Vijayan"
 date: "2023-06-19"
 output: html_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 ## Predicting Exercise Manner - Project Report
 Introduction
@@ -12,7 +16,8 @@ The goal of this project is to predict the manner in which participants perform 
 ## Data Exploration and Preprocessing
 To start the project, we need to explore and preprocess the data. The training and testing datasets are available from the provided URLs. We will use the read.csv function to load the data into R.
 
-```{r}
+```{r Data_Processing, warning=FALSE}
+library(ggplot2)
 library(caret)
 
 train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -22,123 +27,88 @@ test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
 download.file(train_url, destfile = "pml-training.csv")
 download.file(test_url, destfile = "pml-testing.csv")
 
-# Load the data
-training_data <- read.csv("pml-training.csv", na.strings=c("NA", ""))
-```
-Next, we perform some initial data preprocessing steps. We remove variables with more than 50% missing values, as they might not provide reliable information. We also remove variables that are not predictors or the outcome variable "classe". Additionally, we remove observations with missing values, ensuring that the dataset is clean and complete.
+# Load the training and testing datasets
+training_data <- read.table("pml-training.csv", sep = ",", header = TRUE)
+testing_data <- read.table("pml-testing.csv", sep = ",", header = TRUE)
 
-```{r}
-# Remove variables with more than 50% missing values
-training_data <- training_data[, colMeans(is.na(training_data)) < 0.5]
+# Data Partitioning
+set.seed(333)
+training_indices <- createDataPartition(y = training_data$classe, p = 0.7, list = FALSE)
+training1 <- training_data[training_indices, ]
+training2 <- training_data[-training_indices, ]
 
-# Remove variables that are not predictors or the outcome variable "classe"
-training_data <- training_data[, -(1:7)]
+# Preprocessing - Removing near-zero variance predictors
+nzv_columns <- nearZeroVar(training1)
+training1 <- training1[, -nzv_columns]
+training2 <- training2[, -nzv_columns]
 
-# Remove observations with missing values
-training_data <- training_data[complete.cases(training_data), ]
+# Preprocessing - Removing columns with NA values
+training1 <- training1[, colSums(is.na(training1)) == 0]
+training2 <- training2[, colSums(is.na(training2)) == 0]
+
+# Preprocessing - Removing unfit columns
+training1 <- training1[, -(1:5)]
+training2 <- training2[, -(1:5)]
+
 ```
 
 ## Model Building and Cross-Validation
 
-With the preprocessed training data, we can now proceed to build our prediction model. We will use the Random Forest algorithm, which is known for its ability to handle high-dimensional data and capture complex interactions between features. Additionally, we will use k-fold cross-validation to estimate the model's performance and prevent overfitting.
+```{r Model, cache = TRUE}
+# Model Training
+model <- train(classe ~., method = "rf", data = training1, verbose = TRUE, trControl = trainControl(method="cv"), number = 3)
 
-```{r}
-set.seed(12345)
-inTrain <- createDataPartition(training_data$classe, p=0.7, list=FALSE)
-training <- training_data[inTrain, ]
-testing <- training_data[-inTrain, ]
-```
+# Model Evaluation on training1
+predictions_training1 <- predict(model, training1)
 
-In the code above, we split the preprocessed training data into training and testing sets using the createDataPartition function from the caret package. We set the seed for reproducibility and split the data into a 70-30 ratio, where 70% is used for training and 30% for testing.
+# Convert the 'classe' variable to a factor on training1 dataset
+training1$classe <- factor(training1$classe)
 
-## Model Evaluation and Prediction
-After building the model, we need to evaluate its performance using the testing dataset. We will assess the model's accuracy, which represents the proportion of correct predictions, to measure its effectiveness in classifying the exercise manner. Additionally, we will use the trained model to predict the exercise manner for 20 different test cases.
+confusion_matrix_training1 <- confusionMatrix(predictions_training1, training1$classe)
 
-```{r}
-library(caret)
+confusion_matrix_training1
 
-train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+plot(confusion_matrix_training1$table, main = "Confusion Matrix for Training Data")
 
-# Download the data
-download.file(train_url, destfile = "pml-training.csv")
-download.file(test_url, destfile = "pml-testing.csv")
+# Model Evaluation on training2
+predictions_training2 <- predict(model, training2)
 
-# Load the data
-training_data <- read.csv("pml-training.csv", na.strings=c("NA", ""))
+# Convert the 'classe' variable to a factor on training2 dataset
+training2$classe <- factor(training2$classe)
 
-# Subset the data
-subset_percentage <- 0.5  # Adjust this value as desired
-num_rows <- round(nrow(training_data) * subset_percentage)
-training_data <- training_data[1:num_rows, ]
+confusion_matrix_training2 <- confusionMatrix(predictions_training2, training2$classe)
 
-# Remove variables with more than 50% missing values
-training_data <- training_data[, colMeans(is.na(training_data)) < 0.5]
+confusion_matrix_training2
 
-# Remove variables that are not predictors or the outcome variable "classe"
-training_data <- training_data[, -(1:7)]
-
-# Remove observations with missing values
-training_data <- training_data[complete.cases(training_data), ]
-
-# Split the cleaned data into training and testing sets
-set.seed(12345)
-inTrain <- createDataPartition(training_data$classe, p=0.7, list=FALSE)
-training <- training_data[inTrain, ]
-testing <- training_data[-inTrain, ]
+plot(confusion_matrix_training2$table, main = "Confusion Matrix for Validation Data")
 
 ```
 
+## Model Evaluation and Prediction with Plots
 
-```{r}
-# Convert the 'classe' variable to a factor in both training and testing datasets
-training$classe <- factor(training$classe)
-testing$classe <- factor(testing$classe)
+```{r Evaluation}
+# Preprocessing - Removing columns with NA values and unfit columns
+testing_data <- testing_data[, colSums(is.na(testing_data)) == 0]
+testing_data <- testing_data[, -(1:5)]
 
-# Train the model
-model <- train(classe ~ ., data = training, method = "rf")
+# Prediction on test data
+predictions_test <- predict(model, testing_data)
 
-# Evaluate model performance
-predictions <- predict(model, newdata = testing)
-accuracy <- confusionMatrix(predictions, testing$classe)$overall["Accuracy"]
+predictions_test
 
-# Load the test data
-test_data <- read.csv("pml-testing.csv", na.strings=c("NA", ""))
+# Example Plot 1: Confusion Matrix for training1
+plot(confusion_matrix_training1$table, main = "Confusion Matrix for Training Data")
 
-# Preprocess the test data
-test_data <- test_data[, colMeans(is.na(test_data)) < 0.5]
-test_data <- test_data[, -(1:7)]
+# Example Plot 2: Confusion Matrix for training2
+plot(confusion_matrix_training2$table, main = "Confusion Matrix for Validation Data")
 
-# Predict exercise manner for 20 test cases
-predicted_classes <- predict(model, newdata = test_data)
-
-# Extract confusion matrix
-confusion <- confusionMatrix(predictions, testing$classe)
-
-# Print the confusion matrix
-print(confusion)
-```
-
-```{r}
-# Plot 1: Variable Importance
-var_importance <- varImp(model)
-plot(var_importance)
-
-# Plot 2: Confusion Matrix
-confusion <- confusionMatrix(predictions, testing$classe)
-plot(confusion$table, col = confusion$byClass, 
-     main = "Confusion Matrix",
-     xlab = "Predicted Class",
-     ylab = "True Class")
-
-# Plot 3: Prediction Distribution
-prediction_dist <- data.frame(predictions)
-prediction_dist$PredictedClass <- as.factor(predictions)
-ggplot(prediction_dist, aes(x = PredictedClass, fill = PredictedClass)) +
+# Example Plot 3: Predicted Classes for test data
+predictions_df <- data.frame(Exercise_Manner = predictions_test)
+ggplot(predictions_df, aes(x = Exercise_Manner)) +
   geom_bar() +
-  labs(title = "Distribution of Predicted Classes",
-       x = "Predicted Class",
-       y = "Count") +
-  theme_minimal()
+  labs(title = "Predicted Exercise Manner for Test Data",
+       x = "Exercise Manner",
+       y = "Count")
+
 ```
-In the code above, we train the Random Forest model using the training data and evaluate its performance on the testing data. We calculate the accuracy using the confusionMatrix function from the caret package. Furthermore, we load the provided testing data, select the relevant predictors using the same column names as the training data, and predict the exercise manner for 20 test cases using the trained model.
+
